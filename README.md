@@ -35,16 +35,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -RootPath 
 
 The installer is idempotent. Re-running it replaces the existing scheduled task cleanly.
 
-## Logged-Off Mode
-
-The default install uses the current interactive user and a hidden launcher. To try Task Scheduler's password-backed "run whether user is logged on or not" mode:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -RootPath "C:\G\Code" -IntervalMinutes 180 -RunWhetherLoggedOnOrNotWithPassword
-```
-
-This prompts locally for the Windows account password and passes it only to `Register-ScheduledTask`. On this machine, password-backed probe tasks registered successfully but did not execute when manually triggered, so the working installed task was restored to the default interactive hidden-launcher mode.
-
 ## Run Once Manually
 
 ```powershell

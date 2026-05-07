@@ -8,9 +8,7 @@ param(
 
     [string]$TaskName = 'GitAutoFastForward',
 
-    [string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'GitAutoFF'),
-
-    [switch]$RunWhetherLoggedOnOrNotWithPassword
+    [string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'GitAutoFF')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,23 +46,14 @@ if ($existingTask) {
 $escapedWorker = $targetWorker.Replace('"', '\"')
 $escapedRoot = $RootPath.Replace('"', '\"')
 $escapedLauncher = $targetLauncher.Replace('"', '\"')
-if ($RunWhetherLoggedOnOrNotWithPassword) {
-    $arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$escapedWorker`" -RootPath `"$escapedRoot`" -RetentionDays 5 -CommandTimeoutSeconds 300"
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments
-} else {
-    $arguments = "//B //Nologo `"$escapedLauncher`" `"$escapedWorker`" `"$escapedRoot`" 5 300"
-    $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument $arguments
-}
+$arguments = "//B //Nologo `"$escapedLauncher`" `"$escapedWorker`" `"$escapedRoot`" 5 300"
+$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument $arguments
 $interval = New-TimeSpan -Minutes $IntervalMinutes
 $startupBoundary = (Get-Date).AddMinutes($IntervalMinutes).ToString('s')
 $intervalTrigger = New-ScheduledTaskTrigger -Once -At $startupBoundary -RepetitionInterval $interval
 $currentUser = (& whoami).Trim()
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
-$principal = if ($RunWhetherLoggedOnOrNotWithPassword) {
-    New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Password -RunLevel Limited
-} else {
-    New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Limited
-}
+$principal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -DontStopIfGoingOnBatteries `
@@ -73,35 +62,14 @@ $settings = New-ScheduledTaskSettingsSet `
     -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit (New-TimeSpan -Hours 1) `
     -MultipleInstances IgnoreNew
-if ($RunWhetherLoggedOnOrNotWithPassword) {
-    $credential = Get-Credential -UserName $currentUser -Message "Enter the Windows password for $currentUser so Task Scheduler can run GitAutoFastForward when you are logged off."
-    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
-    try {
-        $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-        Register-ScheduledTask `
-            -TaskName $TaskName `
-            -Action $action `
-            -Trigger @($intervalTrigger, $logonTrigger) `
-            -Settings $settings `
-            -User $currentUser `
-            -Password $plainPassword `
-            -Description "Automatically fetches Git repositories under $RootPath and fast-forwards clean current branches." `
-            -Force | Out-Null
-    } finally {
-        if ($bstr -ne [System.IntPtr]::Zero) {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-        }
-    }
-} else {
-    Register-ScheduledTask `
-        -TaskName $TaskName `
-        -Action $action `
-        -Trigger @($intervalTrigger, $logonTrigger) `
-        -Settings $settings `
-        -Principal $principal `
-        -Description "Automatically fetches Git repositories under $RootPath and fast-forwards clean current branches." `
-        -Force | Out-Null
-}
+Register-ScheduledTask `
+    -TaskName $TaskName `
+    -Action $action `
+    -Trigger @($intervalTrigger, $logonTrigger) `
+    -Settings $settings `
+    -Principal $principal `
+    -Description "Automatically fetches Git repositories under $RootPath and fast-forwards clean current branches." `
+    -Force | Out-Null
 
 Write-Host "Installed worker: $targetWorker"
 Write-Host "Installed hidden launcher: $targetLauncher"
